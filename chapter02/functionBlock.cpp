@@ -7,31 +7,40 @@
 #include <llvm/IR/Function.h>
 
 
-static llvm::LLVMContext TheContext;
-static llvm::Module *ModuleOb = new llvm::Module("My Compiler", TheContext);
+static std::unique_ptr<llvm::LLVMContext> TheContext;
+static std::unique_ptr<llvm::Module> TheModule;
+static std::unique_ptr<llvm::IRBuilder<>> Builder;
 
-llvm::Function *createFunc(llvm::IRBuilder<> &Builder, std::string name)
+void Init()
 {
-    llvm::FunctionType *funcType = llvm::FunctionType::get(Builder.getInt32Ty(), false);
+    TheContext = std::make_unique<llvm::LLVMContext>();
+    TheModule  = std::make_unique<llvm::Module>("My Compiler", *TheContext);
+    Builder    = std::make_unique<llvm::IRBuilder<>>(*TheContext);
+}
+
+llvm::Function *createFunc(std::string name)
+{
+    llvm::FunctionType *funcType = llvm::FunctionType::get(Builder->getInt32Ty(), false);
     llvm::Function *fooFunc =
-        llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, name, ModuleOb);
+        llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, name, *TheModule);
 
     return fooFunc;
 }
 
 llvm::BasicBlock *createBasicBlock(llvm::Function *fooFunc, std::string Name)
 {
-    return llvm::BasicBlock::Create(TheContext, Name, fooFunc);
+    return llvm::BasicBlock::Create(*TheContext, Name, fooFunc);
 }
 
 int main()
 {
-    static llvm::IRBuilder<> Builder(TheContext);
-    llvm::Function *fooFunc = createFunc(Builder, "foo");
+    Init();
+    llvm::Function *fooFunc = createFunc("foo");
     llvm::BasicBlock *entry = createBasicBlock(fooFunc, "entry");
 
-    Builder.SetInsertPoint(entry);
+    Builder->SetInsertPoint(entry);
     llvm::verifyFunction(*fooFunc);
-    ModuleOb->print(llvm::errs(), nullptr);
+    TheModule->print(llvm::errs(), nullptr);
+
     return 0;
 }

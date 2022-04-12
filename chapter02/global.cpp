@@ -10,27 +10,35 @@
 #include <llvm/Support/Alignment.h>
 
 
-static llvm::LLVMContext TheContext;
-static llvm::Module *ModuleOb = new llvm::Module("My Compiler", TheContext);
+static std::unique_ptr<llvm::LLVMContext> TheContext;
+static std::unique_ptr<llvm::Module> TheModule;
+static std::unique_ptr<llvm::IRBuilder<>> Builder;
 
-llvm::Function *createFunc(llvm::IRBuilder<> &Builder, std::string name)
+void Init()
 {
-    llvm::FunctionType *funcType = llvm::FunctionType::get(Builder.getInt32Ty(), false);
+    TheContext = std::make_unique<llvm::LLVMContext>();
+    TheModule  = std::make_unique<llvm::Module>("My Compiler", *TheContext);
+    Builder    = std::make_unique<llvm::IRBuilder<>>(*TheContext);
+}
+
+llvm::Function *createFunc(std::string name)
+{
+    llvm::FunctionType *funcType = llvm::FunctionType::get(Builder->getInt32Ty(), false);
     llvm::Function *fooFunc =
-        llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, name, ModuleOb);
+        llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, name, *TheModule);
 
     return fooFunc;
 }
 
 llvm::BasicBlock *createBasicBlock(llvm::Function *fooFunc, std::string Name)
 {
-    return llvm::BasicBlock::Create(TheContext, Name, fooFunc);
+    return llvm::BasicBlock::Create(*TheContext, Name, fooFunc);
 }
 
-llvm::GlobalVariable *createGlob(llvm::IRBuilder<> &Builder, std::string Name)
+llvm::GlobalVariable *createGlob(std::string Name)
 {
-    ModuleOb->getOrInsertGlobal(Name, Builder.getInt32Ty());
-    llvm::GlobalVariable *gVar = ModuleOb->getNamedGlobal(Name);
+    TheModule->getOrInsertGlobal(Name, Builder->getInt32Ty());
+    llvm::GlobalVariable *gVar = TheModule->getNamedGlobal(Name);
     gVar->setLinkage(llvm::GlobalValue::CommonLinkage);
     gVar->setAlignment(llvm::MaybeAlign(4));
 
@@ -39,13 +47,14 @@ llvm::GlobalVariable *createGlob(llvm::IRBuilder<> &Builder, std::string Name)
 
 int main()
 {
-    static llvm::IRBuilder<> Builder(TheContext);
-    llvm::GlobalVariable *gVar = createGlob(Builder, "x");
-    llvm::Function *fooFunc = createFunc(Builder, "foo");
-    llvm::BasicBlock *entry = createBasicBlock(fooFunc, "entry");
+    Init();
+    llvm::GlobalVariable *gVar = createGlob("x");
+    llvm::Function *fooFunc    = createFunc("foo");
+    llvm::BasicBlock *entry    = createBasicBlock(fooFunc, "entry");
 
-    Builder.SetInsertPoint(entry);
+    Builder->SetInsertPoint(entry);
     llvm::verifyFunction(*fooFunc);
-    ModuleOb->print(llvm::errs(), nullptr);
+    TheModule->print(llvm::errs(), nullptr);
+
     return 0;
 }
