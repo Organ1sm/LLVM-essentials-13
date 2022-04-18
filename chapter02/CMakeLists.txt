@@ -21,3 +21,6 @@ target_link_libraries(Arithmetic ${llvm_libs})
 
 add_executable(IfElse If-Else.cpp)
 target_link_libraries(IfElse ${llvm_libs})
+
+add_executable(Loop Loop.cpp)
+target_link_libraries(Loop ${llvm_libs})

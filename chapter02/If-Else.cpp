@@ -17,6 +17,7 @@ static std::unique_ptr<llvm::Module> TheModule;
 static std::unique_ptr<llvm::IRBuilder<>> Builder;
 static std::vector<std::string> FuncArgs;
 
+
 void Init()
 {
     TheContext = std::make_unique<llvm::LLVMContext>();
@@ -32,9 +33,11 @@ using ValList = llvm::SmallVector<llvm::Value *, 16>;
 llvm::Function *createFunc(std::string name)
 {
     std::vector<llvm::Type *> Integers(FuncArgs.size(), llvm::Type::getInt32Ty(*TheContext));
+
+    // make function signature
     llvm::FunctionType *funcType = llvm::FunctionType::get(Builder->getInt32Ty(), Integers, false);
     llvm::Function *fooFunc =
-        llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, name, *TheModule);
+        llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, name, TheModule.get());
 
     return fooFunc;
 }
@@ -69,12 +72,11 @@ void setFuncArgs(llvm::Function *fooFunc, std::vector<std::string> FuncArgs)
 
 llvm::Value *createIfElse(BBList List, ValList VL)
 {
-    llvm::Value *CondTn = VL[0];
-    llvm::Value *Arg1   = VL[1];
-
-    llvm::BasicBlock *ThenBB  = List[0];
-    llvm::BasicBlock *ElseBB  = List[1];
-    llvm::BasicBlock *MergeBB = List[2];
+    llvm::BasicBlock *ThenBB  = createBasicBlock(fooFunc, "then");
+    llvm::BasicBlock *ElseBB  = createBasicBlock(fooFunc, "else");
+    llvm::BasicBlock *MergeBB = createBasicBlock(fooFunc, "ifcont");
+    llvm::Value *CondTn       = VL[0];
+    llvm::Value *Arg1         = VL[1];
 
     Builder->CreateCondBr(CondTn, ThenBB, ElseBB);
 
@@ -103,30 +105,35 @@ llvm::Value *createIfElse(BBList List, ValList VL)
 int main()
 {
     Init();
+
+    // Global Variable
     llvm::GlobalVariable *gVar = createGlob("x");
-    llvm::Function *fooFunc    = createFunc("foo");
+    gVar->setInitializer(Builder->getInt32(21));
+
+    llvm::Function *fooFunc = createFunc("foo");
     setFuncArgs(fooFunc, FuncArgs);
 
     llvm::BasicBlock *entry = createBasicBlock(fooFunc, "entry");
-
     Builder->SetInsertPoint(entry);
 
     llvm::Value *Arg1     = fooFunc->arg_begin();           // use a
     llvm::Value *constant = Builder->getInt32(32);          // constant = 32
     llvm::Value *val      = createArith(Arg1, constant);    // val = a  * constant
 
+    auto AI = fooFunc->arg_begin();
+    auto a1 = AI++;
+    auto a2 = AI;
+    auto c  = Builder->CreateAdd(a1, a2, "c");
+
     llvm::Value *val2    = Builder->getInt32(100);                         // val2 = 100
     llvm::Value *Compare = Builder->CreateICmpULT(val, val2, "cmptmp");    //
-    llvm::Value *CondTn  = Builder->CreateICmpNE(Compare, Builder->getInt1(0), "ifcond");
-
+    llvm::Value *CondTn  = Builder->CreateICmpNE(Compare, Builder->getInt1(false), "ifcond");
 
     ValList VL;
     VL.push_back(CondTn);
     VL.push_back(Arg1);
 
-    llvm::BasicBlock *ThenBB  = createBasicBlock(fooFunc, "then");
-    llvm::BasicBlock *ElseBB  = createBasicBlock(fooFunc, "else");
-    llvm::BasicBlock *MergeBB = createBasicBlock(fooFunc, "ifcont");
+
 
     BBList List;
     List.push_back(ThenBB);

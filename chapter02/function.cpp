@@ -17,11 +17,15 @@ void Init()
     Builder    = std::make_unique<llvm::IRBuilder<>>(*TheContext);
 }
 
-llvm::Function *createFunc(std::string name)
+llvm::Function *createFunc(llvm::Type *RetTy,
+                           llvm::ArrayRef<llvm::Type *> Params,
+                           std::string Name,
+                           bool isVarArg = false)
+
 {
-    llvm::FunctionType *funcType = llvm::FunctionType::get(Builder->getInt32Ty(), false);
+    llvm::FunctionType *funcType = llvm::FunctionType::get(RetTy, Params, isVarArg);
     llvm::Function *fooFunc =
-        llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, name, *TheModule);
+        llvm::Function::Create(funcType, llvm::Function::ExternalLinkage, Name, *TheModule);
 
     return fooFunc;
 }
@@ -30,8 +34,10 @@ llvm::Function *createFunc(std::string name)
 int main()
 {
     Init();
-    llvm::Function *fooFunc = createFunc("foo");
+    llvm::Function *fooFunc = createFunc(Builder->getInt32Ty(), {Builder->getInt32Ty()}, "Foo");
     llvm::verifyFunction(*fooFunc);
+
     TheModule->print(llvm::errs(), nullptr);
+
     return 0;
 }
