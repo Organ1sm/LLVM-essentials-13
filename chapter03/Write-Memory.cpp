@@ -8,6 +8,7 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Value.h>
 #include <llvm/Support/Alignment.h>
+#include <llvm/Support/raw_ostream.h>
 
 static std::unique_ptr<llvm::LLVMContext> TheContext;
 static std::unique_ptr<llvm::Module> TheModule;
@@ -56,7 +57,7 @@ llvm::Function *createFuncProto(std::string funcName)
     llvm::Type *vecTy = llvm::VectorType::get(u32Ty, 2, false);
     llvm::Type *ptrTy = vecTy->getPointerTo(0);
 
-    llvm::Function *fooFunc = createFunc(Builder->getInt32Ty(), ptrTy, funcName);
+    llvm::Function *fooFunc = createFunc(Builder->getInt32Ty(), {ptrTy}, funcName);
 
     setFuncArgs(fooFunc, FuncArgs);
 
@@ -65,8 +66,20 @@ llvm::Function *createFuncProto(std::string funcName)
 
 llvm::Value *getGEP(llvm::Value *base, llvm::ArrayRef<llvm::Value *> offset)
 {
+    base->getType()->print(llvm::errs());
+    llvm::errs() << base->getType()->getTypeID() << '\n';
+
     return Builder->CreateGEP(base->getType()->getPointerElementType(), base, offset, "a1");
 }
+
+llvm::Value *getLoad(llvm::Value *address)
+{
+    // %val = load i32, i32* a1
+    return Builder->CreateLoad(address->getType()->getPointerElementType(), address, "load");
+}
+
+void getStore(llvm::Value *address, llvm::Value *v) { Builder->CreateStore(v, address); }
+
 
 int main()
 {
@@ -78,8 +91,15 @@ int main()
     auto *entry = createBasicBlock(fooFunc, "entry");
     Builder->SetInsertPoint(entry);
 
-    llvm::Value *gep = getGEP(base, {Builder->getInt32(0), Builder->getInt32(1)});
-    Builder->CreateRet(Builder->getInt32(0));
+    llvm::Value *gep  = getGEP(base, {Builder->getInt32(0), Builder->getInt32(1)});
+    llvm::Value *load = getLoad(gep);
+
+    auto constant = Builder->getInt32(16);
+    auto arithVal = Builder->CreateMul(gep, constant);
+
+    getStore(gep, arithVal);
+
+    Builder->CreateRet(load);
 
     llvm::verifyFunction(*fooFunc);
 

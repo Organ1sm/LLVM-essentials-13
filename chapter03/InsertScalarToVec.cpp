@@ -8,6 +8,7 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Value.h>
 #include <llvm/Support/Alignment.h>
+#include <llvm/Support/raw_ostream.h>
 
 static std::unique_ptr<llvm::LLVMContext> TheContext;
 static std::unique_ptr<llvm::Module> TheModule;
@@ -53,34 +54,38 @@ llvm::Function *createFuncProto(std::string funcName)
     FuncArgs.push_back("a");
 
     llvm::Type *u32Ty = llvm::Type::getInt32Ty(*TheContext);
-    llvm::Type *vecTy = llvm::VectorType::get(u32Ty, 2, false);
-    llvm::Type *ptrTy = vecTy->getPointerTo(0);
+    llvm::Type *vecTy = llvm::VectorType::get(u32Ty, 4, false);    // Vec is of vector type <4 x i32>
 
-    llvm::Function *fooFunc = createFunc(Builder->getInt32Ty(), ptrTy, funcName);
+    llvm::Function *fooFunc = createFunc(Builder->getInt32Ty(), vecTy, funcName);
 
     setFuncArgs(fooFunc, FuncArgs);
 
     return fooFunc;
 }
 
-llvm::Value *getGEP(llvm::Value *base, llvm::ArrayRef<llvm::Value *> offset)
+llvm::Value *getInsertElement(llvm::Value *vec, llvm::Value *val, llvm::Value *idx)
 {
-    return Builder->CreateGEP(base->getType()->getPointerElementType(), base, offset, "a1");
+    return Builder->CreateInsertElement(vec, val, idx);
 }
+
 
 int main()
 {
+    // %vec0 = insertelement <4 x double> Vec, %val0, %idx
     Init();
 
     llvm::Function *fooFunc = createFuncProto("Foo");
-    llvm::Value *base       = fooFunc->arg_begin();
-
-    auto *entry = createBasicBlock(fooFunc, "entry");
+    auto *entry             = createBasicBlock(fooFunc, "entry");
     Builder->SetInsertPoint(entry);
 
-    llvm::Value *gep = getGEP(base, {Builder->getInt32(0), Builder->getInt32(1)});
-    Builder->CreateRet(Builder->getInt32(0));
+    llvm::Value *Vec = fooFunc->arg_begin();
 
+    for (std::size_t i = 0; i < 4; i++)
+    {
+        auto V = getInsertElement(Vec, Builder->getInt32((i + 1) * 10), Builder->getInt32(i));
+    }
+
+    Builder->CreateRet(Builder->getInt32(0));
     llvm::verifyFunction(*fooFunc);
 
     TheModule->print(llvm::errs(), nullptr);
